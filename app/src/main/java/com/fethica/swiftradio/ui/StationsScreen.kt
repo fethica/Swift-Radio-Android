@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -43,6 +44,7 @@ fun StationsScreen(
     stations: List<RadioStation>,
     currentStation: RadioStation?,
     isPlaying: Boolean,
+    showMiniPlayer: Boolean,
     onStationClick: (RadioStation) -> Unit
 ) {
     Scaffold(
@@ -59,7 +61,8 @@ fun StationsScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
+            contentPadding = PaddingValues(bottom = if (showMiniPlayer) 80.dp else 0.dp)
         ) {
             items(stations) { station ->
                 StationRow(

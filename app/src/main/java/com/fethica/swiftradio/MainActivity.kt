@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
     private var trackTitle by mutableStateOf("")
     private var artistName by mutableStateOf("")
     private var artworkUrl by mutableStateOf<String?>(null)
+    private var isLive by mutableStateOf(true)
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,11 +101,12 @@ class MainActivity : ComponentActivity() {
                         if (currentStation != null) {
                             NowPlayingScreen(
                                 stationName = currentStation?.name ?: "",
+                                stationDesc = currentStation?.desc ?: "",
                                 trackTitle = trackTitle,
                                 artistName = artistName,
                                 artworkUrl = resolvedArtwork,
                                 isPlaying = isPlaying,
-                                isLive = true,
+                                isLive = isLive,
                                 onPlayPauseClick = { togglePlayPause() },
                                 onNextClick = { nextStation() },
                                 onPreviousClick = { previousStation() },
@@ -119,6 +121,7 @@ class MainActivity : ComponentActivity() {
                             stations = stations,
                             currentStation = currentStation,
                             isPlaying = isPlaying,
+                            showMiniPlayer = currentStation != null,
                             onStationClick = { station ->
                                 playStation(station)
                                 scope.launch {
@@ -173,6 +176,10 @@ class MainActivity : ComponentActivity() {
                     artistName = metadata.artist?.toString() ?: ""
                     artworkUrl = metadata.artworkUri?.toString()
                 }
+
+                override fun onEvents(player: Player, events: Player.Events) {
+                    isLive = player.isCurrentMediaItemLive
+                }
             })
         }, MoreExecutors.directExecutor())
     }
@@ -220,9 +227,12 @@ class MainActivity : ComponentActivity() {
     private fun resolveStationImageUrl(station: RadioStation?): String? {
         station ?: return null
         if (station.imageURL.startsWith("http")) return station.imageURL
-        val extensions = listOf("png", "jpg", "jpeg")
-        val assetFiles = assets.list("")?.toSet() ?: emptySet()
-        val match = extensions.firstOrNull { "${station.imageURL}.$it" in assetFiles }
-        return if (match != null) "file:///android_asset/${station.imageURL}.$match" else null
+        if (station.imageURL.isNotBlank()) {
+            val extensions = listOf("png", "jpg", "jpeg")
+            val assetFiles = assets.list("")?.toSet() ?: emptySet()
+            val match = extensions.firstOrNull { "${station.imageURL}.$it" in assetFiles }
+            if (match != null) return "file:///android_asset/${station.imageURL}.$match"
+        }
+        return "file:///android_asset/stationImage.png"
     }
 }
