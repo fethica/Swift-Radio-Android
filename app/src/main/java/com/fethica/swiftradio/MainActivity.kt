@@ -9,16 +9,24 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
@@ -81,17 +89,20 @@ class MainActivity : ComponentActivity() {
                     bottomSheetState = bottomSheetState
                 )
 
+                val resolvedArtwork = artworkUrl ?: resolveStationImageUrl(currentStation)
+
                 BottomSheetScaffold(
                     scaffoldState = scaffoldState,
-                    sheetPeekHeight = if (currentStation != null) 64.dp else 0.dp,
+                    sheetPeekHeight = 0.dp,
                     sheetDragHandle = null,
+                    sheetContainerColor = MaterialTheme.colorScheme.surface,
                     sheetContent = {
                         if (currentStation != null) {
                             NowPlayingScreen(
                                 stationName = currentStation?.name ?: "",
                                 trackTitle = trackTitle,
                                 artistName = artistName,
-                                artworkUrl = artworkUrl ?: resolveStationImageUrl(currentStation),
+                                artworkUrl = resolvedArtwork,
                                 isPlaying = isPlaying,
                                 isLive = true,
                                 onPlayPauseClick = { togglePlayPause() },
@@ -103,17 +114,43 @@ class MainActivity : ComponentActivity() {
                     },
                     modifier = Modifier.fillMaxSize()
                 ) { padding ->
-                    StationsScreen(
-                        stations = stations,
-                        currentStation = currentStation,
-                        isPlaying = isPlaying,
-                        onStationClick = { station ->
-                            playStation(station)
-                            scope.launch {
-                                bottomSheetState.partialExpand()
+                    Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                        StationsScreen(
+                            stations = stations,
+                            currentStation = currentStation,
+                            isPlaying = isPlaying,
+                            onStationClick = { station ->
+                                playStation(station)
+                                scope.launch {
+                                    bottomSheetState.partialExpand()
+                                }
+                            }
+                        )
+
+                        // Mini player overlay at the bottom
+                        if (currentStation != null) {
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                                    .clickable {
+                                        scope.launch { bottomSheetState.expand() }
+                                    },
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                shadowElevation = 8.dp
+                            ) {
+                                MiniPlayer(
+                                    stationName = currentStation?.name ?: "",
+                                    trackTitle = trackTitle,
+                                    artworkUrl = resolvedArtwork,
+                                    isPlaying = isPlaying,
+                                    onPlayPauseClick = { togglePlayPause() }
+                                )
                             }
                         }
-                    )
+                    }
                 }
             }
         }
