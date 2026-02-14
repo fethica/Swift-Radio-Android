@@ -17,7 +17,6 @@ class AudioService : MediaSessionService() {
         val stream = MediaItem.fromUri("http://strm112.1.fm/acountry_mobile_mp3")
         player.setMediaItem(stream)
         player.prepare()
-        player.play()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
