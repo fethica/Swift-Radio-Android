@@ -96,6 +96,8 @@ class MainActivity : ComponentActivity() {
                             NowPlayingScreen(
                                 stationName = state.currentStation?.name ?: "",
                                 stationDesc = state.currentStation?.desc ?: "",
+                                stationLongDesc = state.currentStation?.longDesc ?: "",
+                                stationWebsite = state.currentStation?.website ?: "",
                                 trackTitle = state.trackTitle,
                                 artistName = state.artistName,
                                 artworkUrl = vm.resolvedArtwork,

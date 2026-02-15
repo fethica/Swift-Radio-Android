@@ -26,6 +26,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -49,12 +53,15 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.fethica.swiftradio.R
+import com.fethica.swiftradio.ui.components.StationInfoSheet
 import com.fethica.swiftradio.ui.theme.SubtitleGray
 
 @Composable
 fun NowPlayingScreen(
     stationName: String,
     stationDesc: String,
+    stationLongDesc: String = "",
+    stationWebsite: String = "",
     trackTitle: String,
     artistName: String,
     artworkUrl: String?,
@@ -66,9 +73,9 @@ fun NowPlayingScreen(
     onNextClick: () -> Unit,
     onPreviousClick: () -> Unit,
     onSeek: (Long) -> Unit = {},
-    onMoreClick: () -> Unit = {},
     hideNextPrevious: Boolean = false
 ) {
+    var showInfoSheet by remember { mutableStateOf(false) }
     val normalizedTitle = trackTitle.trim()
     val normalizedArtist = artistName.trim()
     val hasTrackMetadata = normalizedTitle.isNotBlank() && !normalizedTitle.equals(stationName, ignoreCase = true)
@@ -303,7 +310,7 @@ fun NowPlayingScreen(
 
                 Spacer(modifier = Modifier.width(24.dp))
 
-                IconButton(onClick = onMoreClick) {
+                IconButton(onClick = { showInfoSheet = true }) {
                     Icon(
                         painter = painterResource(R.drawable.ic_more),
                         contentDescription = "More options",
@@ -312,6 +319,18 @@ fun NowPlayingScreen(
                     )
                 }
             }
+        }
+
+        if (showInfoSheet) {
+            StationInfoSheet(
+                stationName = stationName,
+                stationDesc = stationDesc,
+                longDesc = stationLongDesc,
+                website = stationWebsite,
+                trackTitle = trackTitle,
+                artistName = artistName,
+                onDismiss = { showInfoSheet = false }
+            )
         }
     }
 }
