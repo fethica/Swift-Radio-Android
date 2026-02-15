@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -181,6 +182,19 @@ class MainActivity : ComponentActivity() {
                     updatePositionPolling(controller)
                 }
 
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    // Sync UI when station changes from notification next/previous
+                    val index = controller.currentMediaItemIndex
+                    if (index in stations.indices && stations[index] != currentStation) {
+                        currentStation = stations[index]
+                        trackTitle = ""
+                        artistName = ""
+                        artworkUrl = null
+                        lastLookedUpTitle = ""
+                        artworkLookupJob?.cancel()
+                    }
+                }
+
                 override fun onMediaMetadataChanged(metadata: MediaMetadata) {
                     val newTitle = metadata.title?.toString() ?: ""
                     val newArtist = metadata.artist?.toString() ?: ""
@@ -204,6 +218,8 @@ class MainActivity : ComponentActivity() {
                             val url = artworkService.fetchArtworkUrl(newTitle)
                             if (url != null) {
                                 artworkUrl = url
+                                // Update notification artwork
+                                updateNotificationMetadata(controller, newTitle, newArtist, url)
                             }
                         }
                     }
@@ -246,8 +262,29 @@ class MainActivity : ComponentActivity() {
         artworkLookupJob?.cancel()
         controllerFuture.addListener({
             val controller = controllerFuture.get()
-            val mediaItem = MediaItem.fromUri(station.streamURL)
-            controller.setMediaItem(mediaItem)
+            val stationIndex = stations.indexOf(station)
+
+            // Build playlist from all stations with metadata
+            val mediaItems = stations.map { s ->
+                val imageUri = resolveStationImageUrl(s)
+                MediaItem.Builder()
+                    .setUri(s.streamURL)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(s.name)
+                            .setArtist(s.desc)
+                            .setArtworkUri(imageUri?.let { Uri.parse(it) })
+                            .build()
+                    )
+                    .build()
+            }
+
+            // Only reset playlist if it changed (avoid resetting on station tap when already loaded)
+            if (controller.mediaItemCount != mediaItems.size) {
+                controller.setMediaItems(mediaItems, stationIndex, 0)
+            } else {
+                controller.seekTo(stationIndex, 0)
+            }
             controller.prepare()
             controller.play()
         }, MoreExecutors.directExecutor())
@@ -269,16 +306,56 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun nextStation() {
-        val idx = stations.indexOf(currentStation)
-        if (idx >= 0 && stations.isNotEmpty()) {
-            playStation(stations[(idx + 1) % stations.size])
-        }
+        controllerFuture.addListener({
+            val controller = controllerFuture.get()
+            val nextIndex = (controller.currentMediaItemIndex + 1) % stations.size
+            controller.seekTo(nextIndex, 0)
+            controller.prepare()
+            controller.play()
+            updateCurrentStationFromPlayer(controller)
+        }, MoreExecutors.directExecutor())
     }
 
     private fun previousStation() {
-        val idx = stations.indexOf(currentStation)
-        if (idx >= 0 && stations.isNotEmpty()) {
-            playStation(stations[(idx - 1 + stations.size) % stations.size])
+        controllerFuture.addListener({
+            val controller = controllerFuture.get()
+            val prevIndex = (controller.currentMediaItemIndex - 1 + stations.size) % stations.size
+            controller.seekTo(prevIndex, 0)
+            controller.prepare()
+            controller.play()
+            updateCurrentStationFromPlayer(controller)
+        }, MoreExecutors.directExecutor())
+    }
+
+    private fun updateNotificationMetadata(
+        controller: MediaController,
+        title: String,
+        artist: String,
+        artworkUrl: String
+    ) {
+        val index = controller.currentMediaItemIndex
+        val currentItem = controller.getMediaItemAt(index)
+        val updatedItem = currentItem.buildUpon()
+            .setMediaMetadata(
+                currentItem.mediaMetadata.buildUpon()
+                    .setTitle(title)
+                    .setArtist(artist.ifBlank { currentStation?.name })
+                    .setArtworkUri(Uri.parse(artworkUrl))
+                    .build()
+            )
+            .build()
+        controller.replaceMediaItem(index, updatedItem)
+    }
+
+    private fun updateCurrentStationFromPlayer(controller: MediaController) {
+        val index = controller.currentMediaItemIndex
+        if (index in stations.indices) {
+            currentStation = stations[index]
+            trackTitle = ""
+            artistName = ""
+            artworkUrl = null
+            lastLookedUpTitle = ""
+            artworkLookupJob?.cancel()
         }
     }
 

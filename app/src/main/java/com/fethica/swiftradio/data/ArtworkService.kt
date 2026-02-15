@@ -50,7 +50,8 @@ class ArtworkService(private val artworkSize: Int = 600) {
                         url
                     }
                 }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.e("SwiftRadio", "Artwork fetch failed", e)
             null
         }
     }
