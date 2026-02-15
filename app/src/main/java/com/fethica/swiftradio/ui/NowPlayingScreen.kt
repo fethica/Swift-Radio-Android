@@ -69,6 +69,23 @@ fun NowPlayingScreen(
     onMoreClick: () -> Unit = {},
     hideNextPrevious: Boolean = false
 ) {
+    val normalizedTitle = trackTitle.trim()
+    val normalizedArtist = artistName.trim()
+    val hasTrackMetadata = normalizedTitle.isNotBlank() && !normalizedTitle.equals(stationName, ignoreCase = true)
+    val displayTitle = if (hasTrackMetadata) {
+        if (normalizedArtist.isNotBlank()) {
+            "$normalizedTitle — $normalizedArtist"
+        } else {
+            normalizedTitle
+        }
+    } else {
+        stationName
+    }
+    val displaySubtitle = when {
+        hasTrackMetadata -> stationName
+        else -> stationDesc
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Blurred background artwork
         AsyncImage(
@@ -128,7 +145,7 @@ fun NowPlayingScreen(
 
             // Track info — fixed min heights to prevent layout jumps
             Text(
-                text = trackTitle.ifBlank { stationName },
+                text = displayTitle,
                 style = MaterialTheme.typography.titleLarge,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
@@ -143,7 +160,7 @@ fun NowPlayingScreen(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = if (trackTitle.isNotBlank()) stationName else stationDesc,
+                text = displaySubtitle,
                 style = MaterialTheme.typography.bodyLarge,
                 color = SubtitleGray,
                 maxLines = 1,

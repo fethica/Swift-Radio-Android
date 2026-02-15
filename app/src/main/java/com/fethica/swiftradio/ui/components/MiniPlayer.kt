@@ -35,11 +35,26 @@ import com.fethica.swiftradio.ui.theme.SubtitleGray
 fun MiniPlayer(
     stationName: String,
     trackTitle: String,
+    artistName: String,
     artworkUrl: String?,
     isPlaying: Boolean,
     onPlayPauseClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val normalizedTitle = trackTitle.trim()
+    val normalizedArtist = artistName.trim()
+    val hasTrackMetadata = normalizedTitle.isNotBlank() && !normalizedTitle.equals(stationName, ignoreCase = true)
+    val displayTitle = if (hasTrackMetadata) {
+        if (normalizedArtist.isNotBlank()) {
+            "$normalizedTitle — $normalizedArtist"
+        } else {
+            normalizedTitle
+        }
+    } else {
+        stationName
+    }
+    val displaySubtitle = stationName
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -63,13 +78,13 @@ fun MiniPlayer(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = trackTitle.ifBlank { stationName },
+                text = displayTitle,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 modifier = Modifier.basicMarquee()
             )
             Text(
-                text = stationName,
+                text = displaySubtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = SubtitleGray,
                 maxLines = 1,
