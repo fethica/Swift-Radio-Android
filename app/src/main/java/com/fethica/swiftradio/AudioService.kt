@@ -1,12 +1,14 @@
 package com.fethica.swiftradio
 
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Metadata
 import androidx.media3.common.PlaybackException
@@ -16,12 +18,26 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.metadata.icy.IcyInfo
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
+import com.fethica.swiftradio.data.RadioStation
+import com.fethica.swiftradio.data.StationsRepository
+import com.google.common.collect.ImmutableList
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-class AudioService : MediaSessionService() {
+class AudioService : MediaLibraryService() {
 
-    private var mediaSession: MediaSession? = null
+    private var mediaSession: MediaLibrarySession? = null
     private var player: ExoPlayer? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var retryRunnable: Runnable? = null
@@ -32,6 +48,17 @@ class AudioService : MediaSessionService() {
     private var lastPositionRealtimeMs: Long = 0L
     private val audioManager: AudioManager by lazy {
         getSystemService(AudioManager::class.java)
+    }
+
+    private val serviceJob = SupervisorJob()
+    private val serviceScope = CoroutineScope(serviceJob + Dispatchers.Main)
+    private var stations: List<RadioStation> = emptyList()
+    private var browseMediaItems: List<MediaItem> = emptyList()
+    private val stationsLoaded = CompletableDeferred<Unit>()
+
+    companion object {
+        private const val ROOT_ID = "root"
+        private const val STATIONS_ID = "stations"
     }
 
     private val playerListener = object : Player.Listener {
@@ -47,7 +74,7 @@ class AudioService : MediaSessionService() {
             exoPlayer.setPlaylistMetadata(parsedMetadata)
         }
 
-        override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val exoPlayer = player ?: return
             Log.d(
                 "SwiftRadio",
@@ -135,6 +162,82 @@ class AudioService : MediaSessionService() {
         }
     }
 
+    private val libraryCallback = object : MediaLibrarySession.Callback {
+
+        override fun onGetLibraryRoot(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            params: LibraryParams?
+        ): ListenableFuture<LibraryResult<MediaItem>> {
+            val root = MediaItem.Builder()
+                .setMediaId(ROOT_ID)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setIsBrowsable(true)
+                        .setIsPlayable(false)
+                        .setMediaType(MediaMetadata.MEDIA_TYPE_FOLDER_MIXED)
+                        .setTitle("Swift Radio")
+                        .build()
+                )
+                .build()
+            return Futures.immediateFuture(LibraryResult.ofItem(root, params))
+        }
+
+        override fun onGetChildren(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            parentId: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+            if (parentId != ROOT_ID && parentId != STATIONS_ID) {
+                return Futures.immediateFuture(
+                    LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
+                )
+            }
+            return Futures.immediateFuture(
+                LibraryResult.ofItemList(browseMediaItems, params)
+            )
+        }
+
+        override fun onGetItem(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            mediaId: String
+        ): ListenableFuture<LibraryResult<MediaItem>> {
+            val item = browseMediaItems.firstOrNull { it.mediaId == mediaId }
+                ?: return Futures.immediateFuture(
+                    LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
+                )
+            return Futures.immediateFuture(LibraryResult.ofItem(item, null))
+        }
+
+        override fun onAddMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: List<MediaItem>
+        ): ListenableFuture<List<MediaItem>> {
+            // Items from the phone app controller already have URIs — pass them through
+            val allHaveUri = mediaItems.all { it.localConfiguration?.uri != null }
+            if (allHaveUri) {
+                return Futures.immediateFuture(mediaItems)
+            }
+
+            // Android Auto sends items by mediaId only — wait for stations to load, then resolve
+            val future = SettableFuture.create<List<MediaItem>>()
+            serviceScope.launch {
+                try {
+                    stationsLoaded.await()
+                    future.set(resolveAutoMediaItems(mediaItems))
+                } catch (e: Exception) {
+                    future.setException(e)
+                }
+            }
+            return future
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
@@ -155,14 +258,17 @@ class AudioService : MediaSessionService() {
         exoPlayer.addListener(playerListener)
         player = exoPlayer
         logAudioOutputState("onCreate")
-        mediaSession = MediaSession.Builder(this, exoPlayer).build()
+        mediaSession = MediaLibrarySession.Builder(this, exoPlayer, libraryCallback).build()
+
+        loadStationsForBrowse()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
         return mediaSession
     }
 
     override fun onDestroy() {
+        serviceScope.cancel()
         mediaSession?.run {
             player.release()
             release()
@@ -175,6 +281,77 @@ class AudioService : MediaSessionService() {
         player = null
         mediaSession = null
         super.onDestroy()
+    }
+
+    private fun loadStationsForBrowse() {
+        val repository = StationsRepository(this)
+        serviceScope.launch {
+            try {
+                val remoteUrl = if (Config.useLocalStations) null else Config.stationsURL
+                stations = withContext(Dispatchers.IO) { repository.loadStations(remoteUrl) }
+                browseMediaItems = stations.mapIndexed { index, station ->
+                    val imageUrl = resolveStationImageUrl(station)
+                    MediaItem.Builder()
+                        .setMediaId("station_$index")
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle(station.name)
+                                .setArtist(station.desc)
+                                .setArtworkUri(imageUrl?.let { Uri.parse(it) })
+                                .setIsBrowsable(false)
+                                .setIsPlayable(true)
+                                .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                                .build()
+                        )
+                        .build()
+                }
+            } catch (e: Exception) {
+                Log.e("SwiftRadio", "Failed to load stations for browse", e)
+            }
+            stationsLoaded.complete(Unit)
+            mediaSession?.let { session ->
+                session.connectedControllers.forEach { controller ->
+                    session.notifyChildrenChanged(controller, ROOT_ID, browseMediaItems.size, null)
+                }
+            }
+        }
+    }
+
+    private fun resolveAutoMediaItems(mediaItems: List<MediaItem>): List<MediaItem> {
+        val requestedId = mediaItems.firstOrNull()?.mediaId
+        val selectedIndex = browseMediaItems.indexOfFirst { it.mediaId == requestedId }
+            .takeIf { it >= 0 } ?: 0
+
+        val playableItems = stations.mapIndexed { index, station ->
+            val imageUrl = resolveStationImageUrl(station)
+            MediaItem.Builder()
+                .setMediaId("station_$index")
+                .setUri(station.streamURL)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(station.name)
+                        .setArtist(station.desc)
+                        .setArtworkUri(imageUrl?.let { Uri.parse(it) })
+                        .setIsPlayable(true)
+                        .build()
+                )
+                .build()
+        }
+
+        val reordered = playableItems.subList(selectedIndex, playableItems.size) +
+            playableItems.subList(0, selectedIndex)
+        return reordered
+    }
+
+    private fun resolveStationImageUrl(station: RadioStation): String? {
+        if (station.imageURL.startsWith("http")) return station.imageURL
+        if (station.imageURL.isNotBlank()) {
+            val extensions = listOf("png", "jpg", "jpeg")
+            val assetFiles = assets.list("")?.toSet() ?: emptySet()
+            val match = extensions.firstOrNull { "${station.imageURL}.$it" in assetFiles }
+            if (match != null) return "file:///android_asset/${station.imageURL}.$match"
+        }
+        return "file:///android_asset/stationImage.png"
     }
 
     private fun extractIcyTitle(metadata: Metadata): String? {
