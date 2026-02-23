@@ -107,77 +107,77 @@ class MainActivity : ComponentActivity() {
 
                 if (showAbout) {
                     AboutScreen(onBack = { showAbout = false })
-                }
-
-                if (!showAbout) BottomSheetScaffold(
-                    scaffoldState = scaffoldState,
-                    sheetPeekHeight = 0.dp,
-                    sheetDragHandle = null,
-                    sheetContainerColor = MaterialTheme.colorScheme.surface,
-                    sheetContent = {
-                        if (state.currentStation != null) {
-                            NowPlayingScreen(
-                                stationName = state.currentStation?.name ?: "",
-                                stationDesc = state.currentStation?.desc ?: "",
-                                stationLongDesc = state.currentStation?.longDesc ?: "",
-                                stationWebsite = state.currentStation?.website ?: "",
-                                trackTitle = state.trackTitle,
-                                artistName = state.artistName,
-                                artworkUrl = vm.resolvedArtwork,
-                                isPlaying = state.isPlaying,
-                                isBuffering = state.isBuffering,
-                                isLive = state.isLive,
-                                currentPositionProvider = { vm.currentPositionMs },
-                                durationMs = state.durationMs,
-                                onPlayPauseClick = { vm.togglePlayPause() },
-                                onNextClick = { vm.nextStation() },
-                                onPreviousClick = { vm.previousStation() },
-                                onSeek = { vm.seekTo(it) },
-                                hideNextPrevious = Config.hideNextPreviousButtons
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                ) { padding ->
-                    Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-                        StationsScreen(
-                            stations = state.stations,
-                            currentStation = state.currentStation,
-                            isPlaying = state.isPlaying,
-                            isBuffering = state.isBuffering,
-                            isError = state.isError,
-                            showMiniPlayer = state.currentStation != null,
-                            onStationClick = { station ->
-                                vm.playStation(station)
-                                scope.launch {
-                                    bottomSheetState.partialExpand()
-                                }
-                            },
-                            onAboutClick = { showAbout = true }
-                        )
-
-                        // Mini player overlay at the bottom
-                        if (state.currentStation != null) {
-                            Surface(
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        scope.launch { bottomSheetState.expand() }
-                                    },
-                                shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                shadowElevation = 8.dp
-                            ) {
-                                MiniPlayer(
+                } else {
+                    BottomSheetScaffold(
+                        scaffoldState = scaffoldState,
+                        sheetPeekHeight = 0.dp,
+                        sheetDragHandle = null,
+                        sheetContainerColor = MaterialTheme.colorScheme.surface,
+                        sheetContent = {
+                            if (state.currentStation != null) {
+                                NowPlayingScreen(
                                     stationName = state.currentStation?.name ?: "",
+                                    stationDesc = state.currentStation?.desc ?: "",
+                                    stationLongDesc = state.currentStation?.longDesc ?: "",
+                                    stationWebsite = state.currentStation?.website ?: "",
                                     trackTitle = state.trackTitle,
                                     artistName = state.artistName,
                                     artworkUrl = vm.resolvedArtwork,
                                     isPlaying = state.isPlaying,
+                                    isBuffering = state.isBuffering,
                                     isLive = state.isLive,
-                                    onPlayPauseClick = { vm.togglePlayPause() }
+                                    currentPositionProvider = { vm.currentPositionMs },
+                                    durationMs = state.durationMs,
+                                    onPlayPauseClick = { vm.togglePlayPause() },
+                                    onNextClick = { vm.nextStation() },
+                                    onPreviousClick = { vm.previousStation() },
+                                    onSeek = { vm.seekTo(it) },
+                                    hideNextPrevious = Config.hideNextPreviousButtons
                                 )
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    ) { padding ->
+                        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                            StationsScreen(
+                                stations = state.stations,
+                                currentStation = state.currentStation,
+                                isPlaying = state.isPlaying,
+                                isBuffering = state.isBuffering,
+                                isError = state.isError,
+                                showMiniPlayer = state.currentStation != null,
+                                onStationClick = { station ->
+                                    vm.playStation(station)
+                                    scope.launch {
+                                        bottomSheetState.partialExpand()
+                                    }
+                                },
+                                onAboutClick = { showAbout = true }
+                            )
+
+                            // Mini player overlay at the bottom
+                            if (state.currentStation != null) {
+                                Surface(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            scope.launch { bottomSheetState.expand() }
+                                        },
+                                    shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    shadowElevation = 8.dp
+                                ) {
+                                    MiniPlayer(
+                                        stationName = state.currentStation?.name ?: "",
+                                        trackTitle = state.trackTitle,
+                                        artistName = state.artistName,
+                                        artworkUrl = vm.resolvedArtwork,
+                                        isPlaying = state.isPlaying,
+                                        isLive = state.isLive,
+                                        onPlayPauseClick = { vm.togglePlayPause() }
+                                    )
+                                }
                             }
                         }
                     }

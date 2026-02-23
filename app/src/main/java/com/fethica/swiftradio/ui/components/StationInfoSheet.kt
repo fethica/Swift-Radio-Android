@@ -1,8 +1,10 @@
 package com.fethica.swiftradio.ui.components
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,7 +53,11 @@ fun StationInfoSheet(
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState()
     val hasWebsite = website.isNotBlank() && website.startsWith("http")
-    val hasLongDesc = longDesc.isNotBlank()
+    
+    // Fallback to short description if long description is missing
+    val displayDesc = longDesc.ifBlank { stationDesc }
+    val hasDesc = displayDesc.isNotBlank()
+    
     val hasTrackInfo = trackTitle.isNotBlank() &&
         !trackTitle.equals(stationName, ignoreCase = true)
 
@@ -67,14 +73,14 @@ fun StationInfoSheet(
                 .verticalScroll(rememberScrollState())
         ) {
             // About Station
-            if (hasLongDesc) {
+            if (hasDesc) {
                 SheetRow(
                     icon = Icons.Outlined.Info,
                     label = stringResource(R.string.info_about_station),
                     onClick = null
                 )
                 Text(
-                    text = longDesc,
+                    text = displayDesc,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 56.dp, end = 16.dp, bottom = 16.dp)
@@ -144,14 +150,22 @@ private fun SheetRow(
 }
 
 private fun openUrl(context: Context, url: String) {
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-    context.startActivity(intent)
+    try {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        context.startActivity(intent)
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, "No web browser found", Toast.LENGTH_SHORT).show()
+    }
 }
 
 private fun searchMusic(context: Context, query: String) {
-    val searchUrl = "https://www.google.com/search?q=${Uri.encode(query)}"
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl))
-    context.startActivity(intent)
+    try {
+        val searchUrl = "https://www.google.com/search?q=${Uri.encode(query)}"
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl))
+        context.startActivity(intent)
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, "No web browser found", Toast.LENGTH_SHORT).show()
+    }
 }
 
 private fun shareNowPlaying(
@@ -170,11 +184,16 @@ private fun shareNowPlaying(
     } else {
         context.getString(R.string.share_listening_station, stationName)
     }
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, text)
+    
+    try {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        context.startActivity(Intent.createChooser(intent, context.getString(R.string.info_share_now_playing)))
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, "No apps available to share", Toast.LENGTH_SHORT).show()
     }
-    context.startActivity(Intent.createChooser(intent, context.getString(R.string.info_share_now_playing)))
 }
 
 private fun buildSearchQuery(artistName: String, trackTitle: String): String {

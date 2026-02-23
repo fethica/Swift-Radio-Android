@@ -44,7 +44,6 @@ data class PlayerUiState(
 
 private data class RawPlaybackState(
     val playWhenReady: Boolean = false,
-    val isAudioPlaying: Boolean = false,
     val isBuffering: Boolean = false,
     val mediaId: String? = null,
     val metadata: MediaMetadata = MediaMetadata.Builder().build(),
@@ -94,6 +93,12 @@ class PlayerViewModel(
             controller?.let {
                 publishState(it)
                 updatePositionPolling(it)
+            }
+        }
+        
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            controller?.let {
+                publishState(it)
             }
         }
 
@@ -196,8 +201,7 @@ class PlayerViewModel(
     fun togglePlayPause() {
         withController { ctrl ->
             if (ctrl.playWhenReady) {
-                // User wants to stop/pause
-                if (uiState.isLive) {
+                if (ctrl.isCurrentMediaItemLive || ctrl.duration <= 0) {
                     ctrl.pause()
                     ctrl.stop()
                     resetTrackInfo()
@@ -205,7 +209,6 @@ class PlayerViewModel(
                     ctrl.pause()
                 }
             } else {
-                // User wants to play
                 if (ctrl.playbackState == Player.STATE_IDLE) {
                     resetTrackInfo()
                     ctrl.prepare()
@@ -291,7 +294,6 @@ class PlayerViewModel(
         
         _rawState.value = RawPlaybackState(
             playWhenReady = controller.playWhenReady,
-            isAudioPlaying = controller.isPlaying,
             isBuffering = controller.playWhenReady &&
                 (controller.playbackState == Player.STATE_BUFFERING || controller.playbackState == Player.STATE_IDLE),
             mediaId = controller.currentMediaItem?.mediaId,
@@ -336,8 +338,9 @@ class PlayerViewModel(
                     durationMs = raw.durationMs
                 )
 
-                // Only apply metadata when audio is actually playing (not just buffering).
-                if (raw.isAudioPlaying) {
+                // Only apply metadata when the intent is to play (not strictly audio outputting)
+                // This keeps defaults during initial connection/buffering
+                if (raw.playWhenReady) {
                     val metadataKey = metadataFingerprint(raw.metadata)
                     if (metadataKey != lastMetadataKey) {
                         lastMetadataKey = metadataKey
