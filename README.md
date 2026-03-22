@@ -1,5 +1,7 @@
 # Swift Radio Android
 
+[![Android build](https://github.com/fethica/Swift-Radio-Android/actions/workflows/android.yml/badge.svg)](https://github.com/fethica/Swift-Radio-Android/actions/workflows/android.yml)
+
 Open-source radio station app for Android built with Kotlin, Jetpack Compose, and Media3. Yes, it's called Swift Radio and it's written in Kotlin. The name comes from the [iOS original](https://github.com/analogcode/Swift-Radio-Pro). Same station JSON format, matching design and behavior.
 
 <p align="center">
