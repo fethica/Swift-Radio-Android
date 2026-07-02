@@ -20,6 +20,12 @@ Open-source radio station app for Android built with Kotlin, Jetpack Compose, an
 - Material You dynamic color support on Android 12+
 - Localization-ready with all strings extracted to resources
 
+## Download
+
+Grab the latest APK from the [Releases page](https://github.com/fethica/Swift-Radio-Android/releases/latest) and install it on any Android 7.0+ device.
+
+Forks can publish their own signed releases: add the four signing secrets described in [release.yml](.github/workflows/release.yml), then push a version tag like `v1.0.1`.
+
 ## Requirements
 
 - Android 7.0+ (API 24)
