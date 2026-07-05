@@ -107,7 +107,9 @@ Android will automatically use the correct language based on the user's device s
 
 ## Single Station Version
 
-A single-station version is coming soon. It will be bundled with the [iOS single-station version](https://payhip.com/b/x15QB) for the same price. Updates will be posted here when it's ready.
+The single-station version skips the station list and launches straight into the player: your station, front and center. It is bundled with the iOS single-station version, and one purchase includes both platforms.
+
+[![Buy on Payhip](https://img.shields.io/badge/Buy-Single%20Station%20iOS%20%2B%20Android-blue)](https://payhip.com/b/x15QB)
 
 For custom work or more advanced needs, reach out to [Fethi](mailto:contact@fethica.com).
 
